@@ -16,7 +16,7 @@ async function main() {
   page.on('console', (msg) => console.log('console:', msg.text()));
 
   await page.goto(BASE_URL);
-  await page.click('[data-action="create-room"]');
+  await page.click('[data-tab="host"]');
   await page.waitForSelector('.lobby', { timeout: TIMEOUT });
   await page.click('[data-action="toggle-ready"]');
   await page.waitForFunction(

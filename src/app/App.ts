@@ -83,23 +83,35 @@ export async function bootstrapApp(root: HTMLElement): Promise<AppTeardown> {
 
   function showWizard(): void {
     teardownCurrentScreen();
-    const handle = createSignalingWizard(root, (context) => {
-      logger.info(
-        `${context.isHost ? 'Hosting' : 'Joined'} room ${context.roomCode} as player ${context.localPlayerId}`,
-      );
-      if (isDev) window.__slimogusMesh = context.mesh;
-      showLobby(context);
+    let lobbyHandle: ReturnType<typeof createLobbyScreen> | null = null;
+    const wizard = createSignalingWizard(root, {
+      onSession: (context, mount) => {
+        logger.info(
+          `${context.isHost ? 'Hosting' : 'Joined'} room ${context.roomCode} as player ${context.localPlayerId}`,
+        );
+        if (isDev) window.__slimogusMesh = context.mesh;
+        lobbyHandle?.destroy();
+        lobbyHandle = createLobbyScreen(mount, context, (lobbyState) => {
+          logger.info('Game starting');
+          // Keep the PeerJS mesh; only tear down lobby + wizard chrome.
+          lobbyHandle?.destroy();
+          lobbyHandle = null;
+          wizard.destroy({ closeMesh: false });
+          teardownCurrentScreen = () => {};
+          void startGame(context, lobbyState);
+        });
+      },
+      onSessionEnd: () => {
+        lobbyHandle?.destroy();
+        lobbyHandle = null;
+        if (isDev) delete window.__slimogusMesh;
+      },
     });
-    teardownCurrentScreen = () => handle.destroy();
-  }
-
-  function showLobby(context: SignalingWizardContext): void {
-    teardownCurrentScreen();
-    const handle = createLobbyScreen(root, context, (lobbyState) => {
-      logger.info('Game starting');
-      void startGame(context, lobbyState);
-    });
-    teardownCurrentScreen = () => handle.destroy();
+    teardownCurrentScreen = () => {
+      lobbyHandle?.destroy();
+      lobbyHandle = null;
+      wizard.destroy({ closeMesh: true });
+    };
   }
 
   async function startGame(context: SignalingWizardContext, lobbyState: LobbyState): Promise<void> {

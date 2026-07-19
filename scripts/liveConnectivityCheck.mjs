@@ -58,7 +58,7 @@ async function main() {
   );
 
   log('host', 'creating room');
-  await hostPage.click('[data-action="create-room"]');
+  await hostPage.click('[data-tab="host"]');
   await hostPage.waitForSelector('.lobby', { timeout: TIMEOUT });
   const roomCode = (await hostPage.textContent('[data-field="room-code"]'))?.trim() ?? '';
   if (roomCode.length !== 5) {
