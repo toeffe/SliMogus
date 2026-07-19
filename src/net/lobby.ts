@@ -1,5 +1,8 @@
 import type { LobbyEvent, LobbySettings, PlayerInfo } from './protocol';
 
+/** Soft social-deduction floor: 1 impostor + at least 2 crew. */
+export const MIN_PLAYERS_TO_START = 3;
+
 export const DEFAULT_LOBBY_SETTINGS: LobbySettings = {
   impostorCount: 1,
   mapId: 'omega',
@@ -110,7 +113,8 @@ export function applyLobbyEvent(state: LobbyState, event: LobbyEvent): LobbyStat
       return { ...state, hostPlayerId: event.newHostId };
     }
     case 'start': {
-      return state.started ? state : { ...state, started: true, seed: event.seed };
+      if (state.started || state.players.length < MIN_PLAYERS_TO_START) return state;
+      return { ...state, started: true, seed: event.seed };
     }
     default: {
       const exhaustive: never = event;
@@ -121,6 +125,11 @@ export function applyLobbyEvent(state: LobbyState, event: LobbyEvent): LobbyStat
 
 export function allPlayersReady(state: LobbyState): boolean {
   return state.players.length > 0 && state.players.every((player) => player.ready);
+}
+
+/** Host may start only when everyone is ready and the lobby meets the player floor. */
+export function canStartMatch(state: LobbyState): boolean {
+  return state.players.length >= MIN_PLAYERS_TO_START && allPlayersReady(state);
 }
 
 export function isLocalPlayerHost(state: LobbyState): boolean {

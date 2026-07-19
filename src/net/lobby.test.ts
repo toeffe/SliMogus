@@ -3,9 +3,11 @@ import type { LobbyEvent } from './protocol';
 import {
   allPlayersReady,
   applyLobbyEvent,
+  canStartMatch,
   createLobbyState,
   DEFAULT_LOBBY_SETTINGS,
   isLocalPlayerHost,
+  MIN_PLAYERS_TO_START,
   type LobbyState,
 } from './lobby';
 
@@ -141,11 +143,29 @@ describe('applyLobbyEvent', () => {
   });
 
   it('start flips started to true and records the shared seed, only once', () => {
-    const state = baseState();
+    let state = baseState();
+    state = applyLobbyEvent(state, {
+      kind: 'join',
+      player: { playerId: 1, name: 'Blue', color: 0x0000ff, characterId: 'suit' },
+    });
+    state = applyLobbyEvent(state, {
+      kind: 'join',
+      player: { playerId: 2, name: 'Green', color: 0x00ff00, characterId: 'suit' },
+    });
     const started = applyLobbyEvent(state, { kind: 'start', seed: 'shared-seed' });
     expect(started.started).toBe(true);
     expect(started.seed).toBe('shared-seed');
     expect(applyLobbyEvent(started, { kind: 'start', seed: 'other-seed' })).toBe(started);
+  });
+
+  it('start is a no-op below the minimum player count', () => {
+    let state = baseState();
+    state = applyLobbyEvent(state, {
+      kind: 'join',
+      player: { playerId: 1, name: 'Blue', color: 0x0000ff, characterId: 'suit' },
+    });
+    expect(state.players).toHaveLength(2);
+    expect(applyLobbyEvent(state, { kind: 'start', seed: 'shared-seed' })).toBe(state);
   });
 
   it('handles a realistic sequence of events deterministically', () => {
@@ -167,5 +187,27 @@ describe('applyLobbyEvent', () => {
 describe('allPlayersReady', () => {
   it('is false for an empty lobby', () => {
     expect(allPlayersReady({ ...baseState(), players: [] })).toBe(false);
+  });
+});
+
+describe('canStartMatch', () => {
+  it(`requires at least ${MIN_PLAYERS_TO_START} ready players`, () => {
+    let state = baseState();
+    state = applyLobbyEvent(state, {
+      kind: 'join',
+      player: { playerId: 1, name: 'Blue', color: 0x0000ff, characterId: 'suit' },
+    });
+    state = applyLobbyEvent(state, { kind: 'ready', playerId: 0, ready: true });
+    state = applyLobbyEvent(state, { kind: 'ready', playerId: 1, ready: true });
+    expect(allPlayersReady(state)).toBe(true);
+    expect(canStartMatch(state)).toBe(false);
+
+    state = applyLobbyEvent(state, {
+      kind: 'join',
+      player: { playerId: 2, name: 'Green', color: 0x00ff00, characterId: 'suit' },
+    });
+    expect(canStartMatch(state)).toBe(false);
+    state = applyLobbyEvent(state, { kind: 'ready', playerId: 2, ready: true });
+    expect(canStartMatch(state)).toBe(true);
   });
 });

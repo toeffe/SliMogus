@@ -2,10 +2,11 @@ import { resolveDisplayName, loadSettings, saveSettings, type Settings } from '@
 import { PLAYABLE_MAPS } from '@game/mapPois';
 import { PROTOCOL_VERSION, type LobbyEvent, type NetMessage, type PlayerInfo } from '@net/protocol';
 import {
-  allPlayersReady,
   applyLobbyEvent,
+  canStartMatch,
   createLobbyState,
   isLocalPlayerHost,
+  MIN_PLAYERS_TO_START,
   type LobbyState,
 } from '@net/lobby';
 import { applyHostMigration } from '@net/hostMigration';
@@ -212,7 +213,18 @@ export function createLobbyScreen(
     if (hostPanel) hostPanel.hidden = !localIsHost;
     if (startButton) {
       startButton.hidden = !localIsHost;
-      startButton.disabled = !allPlayersReady(state);
+      startButton.disabled = !canStartMatch(state);
+      startButton.title =
+        state.players.length < MIN_PLAYERS_TO_START
+          ? `Need at least ${MIN_PLAYERS_TO_START} players to start`
+          : '';
+    }
+    if (errorEl && localIsHost && state.players.length < MIN_PLAYERS_TO_START) {
+      errorEl.textContent = `Need at least ${MIN_PLAYERS_TO_START} players to start`;
+      errorEl.hidden = false;
+    } else if (errorEl && errorEl.textContent.startsWith('Need at least')) {
+      errorEl.hidden = true;
+      errorEl.textContent = '';
     }
     if (settingsSummaryEl) {
       settingsSummaryEl.hidden = localIsHost;
@@ -407,9 +419,9 @@ export function createLobbyScreen(
   });
 
   startButton?.addEventListener('click', () => {
-    if (!isLocalPlayerHost(state) || !allPlayersReady(state)) return;
+    if (!isLocalPlayerHost(state) || !canStartMatch(state)) return;
     applyAndBroadcast({ kind: 'start', seed: crypto.randomUUID() });
-    onStart(state);
+    if (state.started) onStart(state);
   });
 
   announceLocalPlayer();
