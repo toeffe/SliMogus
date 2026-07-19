@@ -1,0 +1,1 @@
+﻿{"sessionId":"41d030","hypothesisId":"A","location":"git-lint","message":"fix restaged; eslint clean","data":{"eslintExit":0,"preloadPromiseRemoved":true,"makeCrateTextureRemoved":true,"cause":"worktree_had_symbols_again_then_restaged"},"timestamp":1784485512640}
