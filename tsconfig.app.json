@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "esModuleInterop": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "useDefineForClassFields": true,
+    "paths": {
+      "@core/*": ["./src/core/*"],
+      "@game/*": ["./src/game/*"],
+      "@net/*": ["./src/net/*"],
+      "@render/*": ["./src/three/*"],
+      "@sim/*": ["./src/sim/*"],
+      "@ui/*": ["./src/ui/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@types": ["./src/types/index.ts"],
+      "@types/*": ["./src/types/*"],
+      "@constants": ["./src/constants/index.ts"],
+      "@constants/*": ["./src/constants/*"]
+    }
+  },
+  "include": ["src"]
+}

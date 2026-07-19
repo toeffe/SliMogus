@@ -1,0 +1,10 @@
+﻿Sci-Fi interface screen textures by rubberduck (OpenGameArt).
+License: CC0 1.0 Universal
+https://opengameart.org/content/sci-fi-interface-textures
+Files: screen-console.png, screen-med.png, screen-reactor.png, screen-power.png
+(derived from interface_1..4_with_effects.png)
+
+Generated project UI chrome (CC0 / original):
+- panels/console-bg.png — minigame / HUD panel backdrop
+- panels/gauge-face.png — calibrate dial face
+- panels/download-slot.png — download progress chrome

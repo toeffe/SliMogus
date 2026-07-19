@@ -1,0 +1,13 @@
+﻿Player character models
+
+Quaternius — Ultimate Animated Character Pack (CC0 / Public Domain)
+  https://quaternius.com/packs/ultimatedanimatedcharacter.html
+  https://opengameart.org/content/animated-characters-pack
+
+Curated 12 GLBs (Idle / Walk / Run / Death used in-game):
+  suit.glb, worker.glb, doctor.glb, casual.glb,
+  ninja.glb, cowboy.glb, knight.glb, elf.glb,
+  witch.glb, goblin.glb, soldier.glb, pirate.glb
+
+Lobby color tints clothing accent materials.
+Players pick characterId in the lobby.

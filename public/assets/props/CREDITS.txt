@@ -1,0 +1,15 @@
+Prop / material textures (CC0)
+
+ambientCG (https://ambientcg.com/) — CC0 1.0
+- props/metal/panel-*     from Metal007_1K
+- props/metal/brushed-*   from Metal032_1K
+- props/metal/painted-*   from PaintedMetal004_1K
+- props/crate/cardboard-* from Cardboard001_1K
+- props/med/plastic-*     from Plastic006_1K
+- props/reactor/energy-*  from Lava004_1K
+
+Generated project assets (CC0 / original)
+- props/med/pad.png — clinical mattress with single red cross
+- props/caution.png, grate.png, pipeH.png, pipeV.png — existing station props
+
+ui/panels/* — see public/assets/ui/CREDITS.txt

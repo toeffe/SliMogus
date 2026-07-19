@@ -1,0 +1,12 @@
+node_modules
+dist
+dev-dist
+.vite
+coverage
+*.tsbuildinfo
+*.local
+.DS_Store
+.cursor/
+scripts/.visual-check.png
+# Texturelabs originals — do not redistribute (https://texturelabs.org/terms/)
+assets/source/
