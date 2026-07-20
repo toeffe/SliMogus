@@ -39,17 +39,14 @@ export interface GameLoopCallbacks {
 }
 
 /**
- * Fixed-timestep sim clock + rAF render.
- *
- * Simulation is driven by `setInterval`, not `requestAnimationFrame`, because
- * background tabs pause or heavily throttle rAF — which stops input seq
- * emission and freezes every peer's lockstep barrier. Hidden timers are often
- * clamped to ~1s; when hidden we allow up to 60 steps per pulse so one
- * throttled wake still emits about a second of inputs.
+ * Fixed-timestep loop: rAF while the tab is visible (smooth motion), and a
+ * background `setInterval` while hidden so lockstep peers keep receiving
+ * input frames after alt-tab (rAF is paused/throttled in background tabs).
  */
 export class GameLoop {
   private rafHandle: number | null = null;
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
+  private running = false;
   private lastTime = 0;
   private accumulator = 0;
   private tick = 0;
@@ -63,21 +60,22 @@ export class GameLoop {
   ) {}
 
   start(): void {
-    if (this.intervalHandle !== null) return;
+    if (this.running) return;
+    this.running = true;
     this.lastTime = performance.now();
-    this.intervalHandle = setInterval(this.pulse, this.stepMs);
-    this.rafHandle = requestAnimationFrame(this.renderFrame);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.onVisibilityChange);
+    }
+    this.syncClock();
   }
 
   stop(): void {
-    if (this.intervalHandle !== null) {
-      clearInterval(this.intervalHandle);
-      this.intervalHandle = null;
+    if (!this.running) return;
+    this.running = false;
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
     }
-    if (this.rafHandle !== null) {
-      cancelAnimationFrame(this.rafHandle);
-      this.rafHandle = null;
-    }
+    this.clearClock();
   }
 
   get currentFps(): number {
@@ -88,14 +86,51 @@ export class GameLoop {
     return this.tick;
   }
 
-  private readonly pulse = (): void => {
-    const now = performance.now();
+  private readonly onVisibilityChange = (): void => {
+    if (!this.running) return;
+    // Drop a huge paused delta so the first wake doesn't burst.
+    this.lastTime = performance.now();
+    this.accumulator = Math.min(this.accumulator, this.stepMs);
+    this.syncClock();
+  };
+
+  private syncClock(): void {
+    this.clearClock();
+    if (typeof document !== 'undefined' && document.hidden) {
+      // Background: rAF may not fire; interval keeps emitting input seqs.
+      this.intervalHandle = setInterval(this.backgroundPulse, this.stepMs);
+      return;
+    }
+    this.rafHandle = requestAnimationFrame(this.frame);
+  }
+
+  private clearClock(): void {
+    if (this.intervalHandle !== null) {
+      clearInterval(this.intervalHandle);
+      this.intervalHandle = null;
+    }
+    if (this.rafHandle !== null) {
+      cancelAnimationFrame(this.rafHandle);
+      this.rafHandle = null;
+    }
+  }
+
+  private readonly frame = (now: number): void => {
+    this.stepSim(now, 5);
+    this.callbacks.render(this.accumulator / this.stepMs);
+    if (this.running && !(typeof document !== 'undefined' && document.hidden)) {
+      this.rafHandle = requestAnimationFrame(this.frame);
+    }
+  };
+
+  private readonly backgroundPulse = (): void => {
+    // Throttled wakes (~1/s): allow up to a second of catch-up ticks.
+    this.stepSim(performance.now(), 60);
+  };
+
+  private stepSim(now: number, maxSteps: number): void {
     const rawDelta = now - this.lastTime;
     this.lastTime = now;
-    // Foreground: small clamp avoids spiral-of-death after a hitch.
-    // Background: browsers often fire this only ~1/sec — allow a full second
-    // of catch-up so lockstep peers keep receiving input frames.
-    const maxSteps = typeof document !== 'undefined' && document.hidden ? 60 : 5;
     const delta = Math.min(rawDelta, this.stepMs * maxSteps);
 
     this.accumulator += delta;
@@ -113,12 +148,7 @@ export class GameLoop {
     }
 
     this.trackFps(delta);
-  };
-
-  private readonly renderFrame = (): void => {
-    this.callbacks.render(this.accumulator / this.stepMs);
-    this.rafHandle = requestAnimationFrame(this.renderFrame);
-  };
+  }
 
   private trackFps(deltaMs: number): void {
     this.fpsFrameCount += 1;
