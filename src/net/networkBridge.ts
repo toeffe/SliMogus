@@ -6,12 +6,6 @@ import type { PeerMesh } from './mesh';
 const DEFAULT_STATE_HASH_INTERVAL_TICKS = 60;
 /** How many trailing local hashes we keep around to compare against a same-tick remote hash arriving slightly late. */
 const HASH_HISTORY_SIZE = 300;
-/**
- * Movement-only frames ride unreliable; reliable JSON duplicates are sparse so
- * the ordered channel isn't choked at 60Hz (especially over TURN). Actions
- * (`buttons !== 0`) always get an immediate reliable copy.
- */
-const RELIABLE_MOVEMENT_INTERVAL_TICKS = 10;
 
 export interface StateHashMismatch {
   fromPlayerId: number;
@@ -50,11 +44,12 @@ export class NetworkBridge {
   }
 
   /**
-   * Buffers the local player's input for `input.seq` (the tick it targets)
-   * and broadcasts it. Unreliable carries every frame (incl. retransmit while
-   * lockstep-holding). Reliable JSON `actionInput` is only for discrete
-   * actions plus a sparse movement backup — flooding it at 60Hz stalls peers
-   * on TURN and produces move-stop-move lockstep stutter.
+   * Buffers the local player's input for `input.seq` and broadcasts a binary
+   * frame. Each **new** seq goes on unreliable + reliable (binary on both —
+   * TURN often drops the unreliable channel even when it reports open). While
+   * lockstep-holding the same seq, only unreliable is retransmitted so the
+   * ordered reliable pipe is not flooded. JSON `actionInput` is reserved for
+   * discrete button frames as an extra ordered backup.
    */
   sendLocalInput(input: PlayerInput): void {
     const encoded = encodeInput(input);
@@ -64,20 +59,20 @@ export class NetworkBridge {
     const isNewSeq = wireInput.seq !== this.lastBroadcastSeq;
     this.lastBroadcastSeq = wireInput.seq;
 
-    // Unreliable: always (retransmit helps a peer that's missing this seq).
-    this.options.mesh.broadcastInput(encoded);
+    if (isNewSeq) {
+      this.options.mesh.broadcastInput(encoded);
+      if (wireInput.buttons !== 0) {
+        this.options.mesh.broadcastReliable({
+          type: 'actionInput',
+          version: PROTOCOL_VERSION,
+          payload: Array.from(encoded),
+        });
+      }
+      return;
+    }
 
-    if (!isNewSeq) return;
-
-    const needsReliable =
-      wireInput.buttons !== 0 || wireInput.seq % RELIABLE_MOVEMENT_INTERVAL_TICKS === 0;
-    if (!needsReliable) return;
-
-    this.options.mesh.broadcastReliable({
-      type: 'actionInput',
-      version: PROTOCOL_VERSION,
-      payload: Array.from(encoded),
-    });
+    // Holding for a peer: nudge unreliable only; reliable already has this seq.
+    this.options.mesh.broadcastInput(encoded, { reliable: false });
   }
 
   /** Looks up a previously recorded local hash for `tick`, if it's still within the trailing history window. Mainly for tests/tooling that need to compare peers at an identical logical tick rather than "whatever's current right now" (which skews across peers reading it at slightly different real times). */

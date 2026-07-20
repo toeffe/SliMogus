@@ -50,7 +50,7 @@ describe('NetworkBridge construction', () => {
 });
 
 describe('NetworkBridge.sendLocalInput', () => {
-  it('buffers the wire-form input locally and sends unreliable every frame', () => {
+  it('buffers the wire-form input locally and broadcasts binary on new seqs', () => {
     const mesh = createStubMesh();
     const tickBuffer = new TickBuffer(0);
     const bridge = new NetworkBridge({ mesh, tickBuffer });
@@ -62,9 +62,10 @@ describe('NetworkBridge.sendLocalInput', () => {
     expect(tickBuffer.resolve(7)).toEqual([decodeInput(encoded)]);
     expect(mesh.broadcastInput).toHaveBeenCalledTimes(1);
     expect(mesh.broadcastInput).toHaveBeenCalledWith(encoded);
+    expect(mesh.broadcastReliable).not.toHaveBeenCalled();
   });
 
-  it('does not reliable-duplicate ordinary movement-only frames', () => {
+  it('does not JSON-duplicate ordinary movement-only frames', () => {
     const mesh = createStubMesh();
     const bridge = new NetworkBridge({ mesh, tickBuffer: new TickBuffer(0) });
 
@@ -74,7 +75,7 @@ describe('NetworkBridge.sendLocalInput', () => {
     expect(mesh.broadcastReliable).not.toHaveBeenCalled();
   });
 
-  it('reliable-duplicates frames with action buttons', () => {
+  it('JSON-duplicates frames with action buttons', () => {
     const mesh = createStubMesh();
     const bridge = new NetworkBridge({ mesh, tickBuffer: new TickBuffer(0) });
 
@@ -88,30 +89,19 @@ describe('NetworkBridge.sendLocalInput', () => {
     });
   });
 
-  it('sends a sparse reliable backup on movement interval ticks', () => {
+  it('retransmits unreliable-only while lockstep-holding the same seq', () => {
     const mesh = createStubMesh();
     const bridge = new NetworkBridge({ mesh, tickBuffer: new TickBuffer(0) });
 
-    const localInput = input({ playerId: 0, seq: 10, buttons: 0, moveY: -1 });
+    const localInput = input({ playerId: 0, seq: 7, buttons: 0, moveY: -1 });
+    bridge.sendLocalInput(localInput);
     bridge.sendLocalInput(localInput);
 
-    expect(mesh.broadcastReliable).toHaveBeenCalledWith({
-      type: 'actionInput',
-      version: PROTOCOL_VERSION,
-      payload: Array.from(encodeInput(localInput)),
+    expect(mesh.broadcastInput).toHaveBeenNthCalledWith(1, encodeInput(localInput));
+    expect(mesh.broadcastInput).toHaveBeenNthCalledWith(2, encodeInput(localInput), {
+      reliable: false,
     });
-  });
-
-  it('retransmits unreliable but not reliable while lockstep-holding the same seq', () => {
-    const mesh = createStubMesh();
-    const bridge = new NetworkBridge({ mesh, tickBuffer: new TickBuffer(0) });
-
-    const localInput = input({ playerId: 0, seq: 10, buttons: 0, moveY: -1 });
-    bridge.sendLocalInput(localInput);
-    bridge.sendLocalInput(localInput);
-
-    expect(mesh.broadcastInput).toHaveBeenCalledTimes(2);
-    expect(mesh.broadcastReliable).toHaveBeenCalledTimes(1);
+    expect(mesh.broadcastReliable).not.toHaveBeenCalled();
   });
 });
 

@@ -128,18 +128,48 @@ export class PeerMesh {
     }
   }
 
-  sendInput(toPlayerId: number, data: ArrayBufferView): void {
+  /**
+   * Sends a binary input frame. By default goes out on **both** open channels:
+   * unreliable for latency, reliable as a tiny safety net (TURN often drops
+   * unordered/unreliable). Pass `reliable: false` to retransmit on unreliable
+   * only (e.g. while lockstep-holding the same seq).
+   */
+  sendInput(toPlayerId: number, data: ArrayBufferView, options?: { reliable?: boolean }): void {
     const slots = this.links.get(toPlayerId);
     if (!slots) return;
     const payload = toArrayBuffer(data);
-    const conn = slots.unreliable?.open ? slots.unreliable : slots.reliable;
-    if (!conn?.open) return;
-    conn.send(payload);
+    const includeReliable = options?.reliable !== false;
+    let sent = false;
+
+    if (slots.unreliable?.open) {
+      try {
+        slots.unreliable.send(payload);
+        sent = true;
+      } catch {
+        /* fall through to reliable */
+      }
+    }
+
+    if (includeReliable && slots.reliable?.open) {
+      try {
+        slots.reliable.send(payload);
+        sent = true;
+      } catch {
+        /* ignore */
+      }
+    } else if (!sent && slots.reliable?.open) {
+      // Unreliable missing/closed — always fall back to reliable.
+      try {
+        slots.reliable.send(payload);
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
-  broadcastInput(data: ArrayBufferView): void {
+  broadcastInput(data: ArrayBufferView, options?: { reliable?: boolean }): void {
     for (const playerId of this.links.keys()) {
-      this.sendInput(playerId, data);
+      this.sendInput(playerId, data, options);
     }
   }
 
