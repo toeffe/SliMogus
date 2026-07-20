@@ -16,9 +16,9 @@ export const FIXED_TIMESTEP_MS = 1000 / TARGET_FPS;
  * arrive over the network before it's needed. Without this, tick 0 would
  * always simulate with only the local player's input already present (no
  * network round-trip can complete within a single synchronous frame),
- * guaranteeing an immediate desync. 6 ticks (~100ms at 60Hz) comfortably
- * covers LAN/localhost RTT; real recovery from a peer that's still too slow
- * is Phase 6 (this phase only detects, via `NetworkBridge`'s state-hash
+ * guaranteeing an immediate desync. ~200ms (12 ticks at 60Hz) covers typical
+ * WebRTC/TURN jitter; real recovery from a peer that's still too slow is
+ * Phase 6 (this phase only detects, via `NetworkBridge`'s state-hash
  * exchange, the desync that an insufficient delay would cause).
  */
-export const INPUT_DELAY_TICKS = 6;
+export const INPUT_DELAY_TICKS = 12;

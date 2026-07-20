@@ -6,6 +6,12 @@ import type { PeerMesh } from './mesh';
 const DEFAULT_STATE_HASH_INTERVAL_TICKS = 60;
 /** How many trailing local hashes we keep around to compare against a same-tick remote hash arriving slightly late. */
 const HASH_HISTORY_SIZE = 300;
+/**
+ * Movement-only frames ride unreliable; reliable JSON duplicates are sparse so
+ * the ordered channel isn't choked at 60Hz (especially over TURN). Actions
+ * (`buttons !== 0`) always get an immediate reliable copy.
+ */
+const RELIABLE_MOVEMENT_INTERVAL_TICKS = 10;
 
 export interface StateHashMismatch {
   fromPlayerId: number;
@@ -33,6 +39,8 @@ export interface NetworkBridgeOptions {
  */
 export class NetworkBridge {
   private readonly recentLocalHashes = new Map<number, string>();
+  /** Last seq broadcast on the wire — lockstep hold re-calls send with the same seq. */
+  private lastBroadcastSeq = Number.NaN;
 
   constructor(private readonly options: NetworkBridgeOptions) {
     this.options.mesh.updateOptions({
@@ -43,14 +51,28 @@ export class NetworkBridge {
 
   /**
    * Buffers the local player's input for `input.seq` (the tick it targets)
-   * and broadcasts it on unreliable (low latency) + reliable (lockstep safety).
-   * Local buffer stores the Float32 wire form so FPS trig axes match remotes.
+   * and broadcasts it. Unreliable carries every frame (incl. retransmit while
+   * lockstep-holding). Reliable JSON `actionInput` is only for discrete
+   * actions plus a sparse movement backup — flooding it at 60Hz stalls peers
+   * on TURN and produces move-stop-move lockstep stutter.
    */
   sendLocalInput(input: PlayerInput): void {
     const encoded = encodeInput(input);
     const wireInput = decodeInput(encoded);
     this.options.tickBuffer.add(wireInput.seq, wireInput);
+
+    const isNewSeq = wireInput.seq !== this.lastBroadcastSeq;
+    this.lastBroadcastSeq = wireInput.seq;
+
+    // Unreliable: always (retransmit helps a peer that's missing this seq).
     this.options.mesh.broadcastInput(encoded);
+
+    if (!isNewSeq) return;
+
+    const needsReliable =
+      wireInput.buttons !== 0 || wireInput.seq % RELIABLE_MOVEMENT_INTERVAL_TICKS === 0;
+    if (!needsReliable) return;
+
     this.options.mesh.broadcastReliable({
       type: 'actionInput',
       version: PROTOCOL_VERSION,
