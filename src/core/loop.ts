@@ -39,11 +39,17 @@ export interface GameLoopCallbacks {
 }
 
 /**
- * Render-decoupled fixed-timestep loop stub. Drives `update` at a fixed
- * rate via an accumulator and `render` once per animation frame.
+ * Fixed-timestep sim clock + rAF render.
+ *
+ * Simulation is driven by `setInterval`, not `requestAnimationFrame`, because
+ * background tabs pause or heavily throttle rAF — which stops input seq
+ * emission and freezes every peer's lockstep barrier. Hidden timers are often
+ * clamped to ~1s; when hidden we allow up to 60 steps per pulse so one
+ * throttled wake still emits about a second of inputs.
  */
 export class GameLoop {
   private rafHandle: number | null = null;
+  private intervalHandle: ReturnType<typeof setInterval> | null = null;
   private lastTime = 0;
   private accumulator = 0;
   private tick = 0;
@@ -57,12 +63,17 @@ export class GameLoop {
   ) {}
 
   start(): void {
-    if (this.rafHandle !== null) return;
+    if (this.intervalHandle !== null) return;
     this.lastTime = performance.now();
-    this.rafHandle = requestAnimationFrame(this.frame);
+    this.intervalHandle = setInterval(this.pulse, this.stepMs);
+    this.rafHandle = requestAnimationFrame(this.renderFrame);
   }
 
   stop(): void {
+    if (this.intervalHandle !== null) {
+      clearInterval(this.intervalHandle);
+      this.intervalHandle = null;
+    }
     if (this.rafHandle !== null) {
       cancelAnimationFrame(this.rafHandle);
       this.rafHandle = null;
@@ -77,15 +88,19 @@ export class GameLoop {
     return this.tick;
   }
 
-  private readonly frame = (now: number): void => {
+  private readonly pulse = (): void => {
+    const now = performance.now();
     const rawDelta = now - this.lastTime;
     this.lastTime = now;
-    // Clamp so a stalled tab (e.g. backgrounded) doesn't spiral into a huge catch-up burst.
-    const delta = Math.min(rawDelta, this.stepMs * 5);
+    // Foreground: small clamp avoids spiral-of-death after a hitch.
+    // Background: browsers often fire this only ~1/sec — allow a full second
+    // of catch-up so lockstep peers keep receiving input frames.
+    const maxSteps = typeof document !== 'undefined' && document.hidden ? 60 : 5;
+    const delta = Math.min(rawDelta, this.stepMs * maxSteps);
 
     this.accumulator += delta;
     let steps = 0;
-    while (this.accumulator >= this.stepMs && steps < 5) {
+    while (this.accumulator >= this.stepMs && steps < maxSteps) {
       this.callbacks.update(this.stepMs, this.tick);
       this.accumulator -= this.stepMs;
       steps += 1;
@@ -98,8 +113,11 @@ export class GameLoop {
     }
 
     this.trackFps(delta);
+  };
+
+  private readonly renderFrame = (): void => {
     this.callbacks.render(this.accumulator / this.stepMs);
-    this.rafHandle = requestAnimationFrame(this.frame);
+    this.rafHandle = requestAnimationFrame(this.renderFrame);
   };
 
   private trackFps(deltaMs: number): void {

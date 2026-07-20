@@ -54,6 +54,8 @@ export class KeyboardController {
   constructor(private readonly target: Window = window) {
     this.target.addEventListener('keydown', this.handleKeyDown);
     this.target.addEventListener('keyup', this.handleKeyUp);
+    // Alt-tab leaves keydown without keyup; clear so background ticks send idle input.
+    this.target.document.addEventListener('visibilitychange', this.handleVisibilityChange);
   }
 
   /** When true, movement axes always report zero (task minigame open). */
@@ -139,10 +141,17 @@ export class KeyboardController {
   destroy(): void {
     this.target.removeEventListener('keydown', this.handleKeyDown);
     this.target.removeEventListener('keyup', this.handleKeyUp);
+    this.target.document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.heldKeys.clear();
     this.useEdgePending = false;
     this.movementLocked = false;
   }
+
+  private readonly handleVisibilityChange = (): void => {
+    if (!this.target.document.hidden) return;
+    this.heldKeys.clear();
+    this.useEdgePending = false;
+  };
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (
