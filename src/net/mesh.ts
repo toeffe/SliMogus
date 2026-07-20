@@ -173,7 +173,11 @@ export class PeerMesh {
     const create =
       this.options.createPeer ??
       ((id?: string | undefined, options?: ConstructorParameters<typeof Peer>[1]) => {
-        return id === undefined ? new Peer(undefined, options) : new Peer(id, options);
+        // PeerJS types: options-only ctor is `new Peer(options)`, not `new Peer(undefined, options)`.
+        if (id === undefined) {
+          return options ? new Peer(options) : new Peer();
+        }
+        return new Peer(id, options);
       });
     const peer =
       fixedId === undefined ? create(undefined, peerOptions) : create(fixedId, peerOptions);
