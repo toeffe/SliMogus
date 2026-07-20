@@ -1,5 +1,6 @@
 import Peer, { type DataConnection } from 'peerjs';
 import { Random } from '@sim/random';
+import { PEER_CONFIG } from './peerConfig';
 import { decodeMessage, encodeMessage, PROTOCOL_VERSION, type NetMessage } from './protocol';
 import { generateRoomCode, isValidRoomCode, normalizeRoomCode } from './roomCode';
 
@@ -168,15 +169,14 @@ export class PeerMesh {
   }
 
   private openLocalPeer(fixedId?: string): Promise<void> {
+    const peerOptions = this.options.peerOptions ?? PEER_CONFIG;
     const create =
       this.options.createPeer ??
-      ((id?: string | undefined) => {
-        if (id === undefined) {
-          return this.options.peerOptions ? new Peer(this.options.peerOptions) : new Peer();
-        }
-        return new Peer(id, this.options.peerOptions);
+      ((id?: string | undefined, options?: ConstructorParameters<typeof Peer>[1]) => {
+        return id === undefined ? new Peer(undefined, options) : new Peer(id, options);
       });
-    const peer = fixedId === undefined ? create() : create(fixedId);
+    const peer =
+      fixedId === undefined ? create(undefined, peerOptions) : create(fixedId, peerOptions);
     this.peer = peer;
 
     return new Promise((resolve, reject) => {

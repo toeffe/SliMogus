@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import type Peer from 'peerjs';
 import { PROTOCOL_VERSION, type NetMessage } from './protocol';
 import { PeerMesh } from './mesh';
+import { PEER_CONFIG } from './peerConfig';
 import { createFakePeerFactory, resetFakePeerBroker } from './testUtils/fakePeerJs';
 
 function flushAsync(): Promise<void> {
@@ -10,6 +12,34 @@ function flushAsync(): Promise<void> {
 describe('PeerMesh PeerJS bootstrap', () => {
   afterEach(() => {
     resetFakePeerBroker();
+  });
+
+  it('passes default STUN and TURN iceServers to createPeer', async () => {
+    const createPeer = createFakePeerFactory();
+    const captured: Array<{
+      id?: string;
+      options?: ConstructorParameters<typeof Peer>[1];
+    }> = [];
+
+    const wrappingCreatePeer: typeof createPeer = (id, options) => {
+      captured.push({ id, options });
+      return createPeer(id, options);
+    };
+
+    const host = await PeerMesh.createAsHost({ createPeer: wrappingCreatePeer });
+    expect(captured.length).toBeGreaterThanOrEqual(1);
+    expect(captured[0]?.options).toEqual(PEER_CONFIG);
+
+    const iceUrls = PEER_CONFIG.config.iceServers.map((s) =>
+      Array.isArray(s.urls) ? s.urls[0] : s.urls,
+    );
+    expect(iceUrls).toEqual([
+      'stun:92.5.51.80:3478',
+      'turn:92.5.51.80:3478',
+      'turn:92.5.51.80:3478?transport=tcp',
+    ]);
+
+    host.close();
   });
 
   it('connects a host and a single joiner via room code', async () => {
