@@ -1,7 +1,7 @@
 import type { LobbyEvent, LobbySettings, PlayerInfo } from './protocol';
 
 /** Soft social-deduction floor: 1 impostor + at least 2 crew. */
-export const MIN_PLAYERS_TO_START = 3;
+export const MIN_PLAYERS_TO_START = 1;
 
 export const DEFAULT_LOBBY_SETTINGS: LobbySettings = {
   impostorCount: 1,
